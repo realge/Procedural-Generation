@@ -8,57 +8,208 @@
 
 
 
-TArray<FVector> ADungeonGenerator::GetNeighbors(const FVector& NodePosition, const FVector& StartPos, const FVector& TargetPos)
+TArray<FVector> ADungeonGenerator::GetNeighbors(const FVector& NodePosition, const FVector& StartPos, const FVector& TargetPos, bool IsStairCase, FVector StairDirection)
 {
-    TArray<FVector> Neighbors;
-    TArray<FVector> Directions = {
-        FVector(1, 0, 0), FVector(-1, 0, 0), 
-        FVector(0, 1, 0), FVector(0, -1, 0)
-    };
 
-    for (const FVector& Direction : Directions)
-    {
-        FVector NewPos = NodePosition + Direction;
-        if (NewPos.X >= 0 && NewPos.X < Width  &&
-            NewPos.Y >= 0 && NewPos.Y < Height  &&
-            IsWalkable(NewPos, StartPos, TargetPos))  // Adjusted for new IsWalkable
+
+
+     TArray<FVector> Neighbors;
+    TArray<FVector> Directions = {
+        FVector(1, 0, 0), FVector(-1, 0, 0),  // East, West
+        FVector(0, 1, 0), FVector(0, -1, 0), // North, South
+        // Up, Down
+    };
+        if(StairDirection.IsZero())
         {
-            Neighbors.Add(NewPos);
+
+        }
+    
+
+    for (const FVector& Dir : Directions)
+    {
+        FVector NewPos = NodePosition + Dir;  
+        if (NewPos.X >= 0 && NewPos.X < Width  && NewPos.Y >= 0 && NewPos.Y < Height  && NewPos.Z >= 0 && NewPos.Z < Length )
+        {
+
+            if(IsStairCase)
+            {
+                if(Dir.Y+StairDirection.Y==3||Dir.X+StairDirection.X==3||Dir.Y+StairDirection.Y==-3||Dir.X+StairDirection.X==-3)
+                {
+                
+                }
+                else
+                continue;
+            }
+
+            if (IsWalkable(NewPos,StartPos,TargetPos))
+            {
+                Neighbors.Add(NewPos);
+            }
         }
     }
+
+   
 
     return Neighbors;
 }
 
-bool ADungeonGenerator::IsWalkable(const FVector& Position, const FVector& StartPos, const FVector& TargetPos)
+
+
+TArray<FVector> ADungeonGenerator::GetStairNeighbors(const FVector& NodePosition, const FVector& StartPos, const FVector& TargetPos, bool IsStairCase,FVector Direction,bool IsStairCorridor)
 {
-    int32 Col = Position.X;
-    int32 Row = Position.Y;
-    int32 Index = Row * Width + Col;
+    
 
-    if (!Grid.IsValidIndex(Index))
-        return false;  // Ensure we are within the grid bounds
+    TArray<FVector> StaircaseDirections = {
+    FVector(2, 0, 1), FVector(-2, 0, 1), // Moving East/West, Ascending
+    FVector(2, 0, -1), FVector(-2, 0, -1), // Moving East/West, Descending
+    FVector(0, 2, 1), FVector(0, -2, 1), // Moving North/South, Ascending
+    FVector(0, 2, -1), FVector(0, -2, -1) // Moving North/South, Descending
+    };
 
-    // Check if the position is within the starting or target room
-    bool isInStartRoom = IsInRoom(Position, StartPos);
-    bool isInTargetRoom = IsInRoom(Position, TargetPos);
+     TArray<FVector> Neighbors;
+   
+   if(IsStairCorridor)
+        {
+            return Neighbors;
+        }
 
-    return Grid[Index] == 0 || isInStartRoom || isInTargetRoom||Grid[Index]==2;  // Allow movement through empty spaces and through any room cells that are part of the start or target rooms
+    if(!IsInRoom(NodePosition,GetRoomFromPosition(StartPos))&&GetIndex(NodePosition.X,NodePosition.Y,NodePosition.Z))
+    for (const FVector& Dir : StaircaseDirections)
+    {
+        FVector NewPos = NodePosition + Dir;
+
+        if(IsStairCase)
+        {
+            if(Direction.Y+Dir.Y==4||Direction.X+Dir.X==4||Direction.Y+Dir.Y==-4||Direction.X+Dir.X==-4)
+            {
+               
+            }
+            
+           else 
+           continue;
+           
+        }
+
+        if(Direction+Dir==FVector(0,0,-2))
+        {
+            continue;
+        }
+
+        if (NewPos.X >= 0 && NewPos.X < Width && NewPos.Y >= 0 && NewPos.Y < Height && NewPos.Z >= 0 && NewPos.Z < Length)
+        {
+            if (IsStaircaseWalkable(NodePosition, Dir))
+            {
+                Neighbors.Add(NewPos);
+            }
+        }
+    }
+
+    return Neighbors;
+
 }
 
-bool ADungeonGenerator::IsInRoom(const FVector& Position, const FVector& RoomPosition)
+
+bool ADungeonGenerator::IsStaircaseWalkable(const FVector& StartPos, const FVector& Direction)
+{
+   
+
+    TArray<FVector> StaircaseCells;
+   
+   
+    StaircaseCells.Add(StartPos + FVector(Direction.X / 2, Direction.Y / 2, 0));
+     StaircaseCells.Add(StartPos + FVector(Direction.X , Direction.Y , 0));
+    StaircaseCells.Add(StartPos + FVector(Direction.X / 2, Direction.Y / 2, Direction.Z ));
+    StaircaseCells.Add(StartPos + Direction);
+
+    for (const FVector& Point : StaircaseCells) {
+
+                int32 X = Point.X ;
+            int32 Y = Point.Y;
+            int32 Z = Point.Z ;
+            int32 Index = GetIndex(X, Y, Z);
+
+        
+            if (!Grid.IsValidIndex(Index))
+            {
+            
+                return false;  // Out of bounds
+            }
+            if (Grid[Index] == 1||Grid[Index]==6||Grid[Index]==2)  // Assuming '0' means walkable/open space
+            {
+                
+                return false;
+            }
+            
+            
+                
+            }
+
+    return true;
+}
+
+FVector ADungeonGenerator::RoomCenter(const FRoom& Room)
+{
+  
+
+    return FVector(
+        (Room.StartX + Room.Width / 2) ,
+        (Room.StartY + Room.Height / 2) ,
+        (Room.StartZ)
+    );
+}
+
+bool ADungeonGenerator::IsWalkable(const FVector& Position, const FVector& StartPos, const FVector& TargetPos)
+{
+    int32 X = Position.X ;
+    int32 Y = Position.Y;
+    int32 Z = Position.Z ;
+    int32 Index = GetIndex(X, Y, Z);
+
+   
+    if (!Grid.IsValidIndex(Index))
+    {
+       
+        return false;  // Out of bounds
+    }
+    if (Grid[Index] == 0||Grid[Index]==2)  // Assuming '0' means walkable/open space
+    {
+        
+        return true;
+    }
+    // Check if the position is within the start or target room
+    bool isInStartRoom = IsInRoom(Position, GetRoomFromPosition(StartPos));
+    bool isInTargetRoom = IsInRoom(Position, GetRoomFromPosition(TargetPos));
+
+    
+
+    return (isInStartRoom || isInTargetRoom);
+}
+
+FRoom ADungeonGenerator::GetRoomFromPosition(const FVector& Position)
 {
     for (const FRoom& Room : Rooms)
     {
-        if (Position.X >= Room.StartX  && Position.X < (Room.StartX + Room.Width)  &&
-            Position.Y >= Room.StartY  && Position.Y < (Room.StartY + Room.Height) )
-        {
-            return true;
-        }
+        if (IsInRoom(Position, Room))
+            return Room;
     }
-    return false;
+    return FRoom();  // Return an empty room if no room is found
 }
 
+bool ADungeonGenerator::IsInRoom(const FVector& Position, const FRoom& Room)
+{
+    int32 X = Position.X ;  // Convert from world coordinates to grid indices
+    int32 Y = Position.Y ;
+    int32 Z = Position.Z ;
+
+    return X >= Room.StartX && X < Room.StartX + Room.Width &&
+           Y >= Room.StartY && Y < Room.StartY + Room.Height &&
+           Z == Room.StartZ;
+}
+
+bool checkpath( FAStarNode* path)
+{
+    return false;
+}
 
 TArray<FAStarNode*> ADungeonGenerator::FindPath(const FVector& StartPos, const FVector& TargetPos)
 {
@@ -71,6 +222,8 @@ TArray<FAStarNode*> ADungeonGenerator::FindPath(const FVector& StartPos, const F
     OpenSet.Add(StartNode);
     AllNodes.Add(StartPos, StartNode);
 
+
+
     while (OpenSet.Num() > 0)
     {
         // Sort OpenSet based on FCost, then HCost for ties
@@ -81,10 +234,16 @@ TArray<FAStarNode*> ADungeonGenerator::FindPath(const FVector& StartPos, const F
         FAStarNode* CurrentNode = OpenSet[0];
         OpenSet.RemoveAt(0);  // Pop the first element (the node with the lowest F cost)
 		
-        if (CurrentNode->Position.Equals(TargetPos, 1.0f))  // Check proximity within a small threshold
+        
+        
+        if (CurrentNode->Position.Equals(TargetPos, 0.0f)&&CurrentNode->Istair==false)  // Check proximity within a small threshold
         {
+
+            UE_LOG(LogTemp, Warning, TEXT("Target Found at %s"), *CurrentNode->Position.ToString());
+             UE_LOG(LogTemp, Warning, TEXT("Target Found at %s"), TargetPos) ;
             while (CurrentNode != nullptr)
             {
+                
                 Path.Add(CurrentNode);
 			
                 CurrentNode = CurrentNode->CameFrom;
@@ -93,14 +252,13 @@ TArray<FAStarNode*> ADungeonGenerator::FindPath(const FVector& StartPos, const F
             break;
         }
 
-        TArray<FVector> Neighbors = GetNeighbors(CurrentNode->Position,StartPos, TargetPos);
+        TArray<FVector> Neighbors = GetNeighbors(CurrentNode->Position,StartPos, TargetPos,CurrentNode->Istair,CurrentNode->StairDirection);
 
-		
+        TArray<FVector> StairNeighbors= GetStairNeighbors(CurrentNode->Position,StartPos, TargetPos,CurrentNode->Istair,CurrentNode->StairDirection,CurrentNode->IsStaircorridor);
 
         for (const FVector& Neighbor : Neighbors)
         {
 			
-          
 			
             float TentativeGCost = CurrentNode->GCost + (CurrentNode->Position - Neighbor).Size();  // Distance as cost
             FAStarNode* NeighborNode = AllNodes.FindRef(Neighbor);
@@ -108,6 +266,14 @@ TArray<FAStarNode*> ADungeonGenerator::FindPath(const FVector& StartPos, const F
             if (!NeighborNode)
             {
                 NeighborNode = new FAStarNode(Neighbor, TentativeGCost, FVector::Dist(Neighbor, TargetPos), CurrentNode);
+               
+                
+              if(CurrentNode->Istair)
+                {
+                    NeighborNode->IsStaircorridor=true;
+                    NeighborNode->StairDirection=Neighbor-CurrentNode->Position;
+                }
+                
                 OpenSet.Add(NeighborNode);
                 AllNodes.Add(Neighbor, NeighborNode);
             }
@@ -117,6 +283,32 @@ TArray<FAStarNode*> ADungeonGenerator::FindPath(const FVector& StartPos, const F
                 NeighborNode->GCost = TentativeGCost;
             }
         }
+
+        for (const FVector& Neighbor : StairNeighbors)
+        {
+			
+			
+            float TentativeGCost = CurrentNode->GCost + (CurrentNode->Position - Neighbor).Size();  // Distance as cost
+            FAStarNode* NeighborNode = AllNodes.FindRef(Neighbor);
+			
+            if (!NeighborNode)
+            {
+                NeighborNode = new FAStarNode(Neighbor, TentativeGCost, FVector::Dist(Neighbor, TargetPos), CurrentNode);
+                NeighborNode->Istair=true;
+                NeighborNode->StairDirection=Neighbor-CurrentNode->Position;
+                
+                OpenSet.Add(NeighborNode);
+                AllNodes.Add(Neighbor, NeighborNode);
+            }
+            else if (TentativeGCost < NeighborNode->GCost)
+            {
+                NeighborNode->CameFrom = CurrentNode;
+                NeighborNode->GCost = TentativeGCost;
+            }
+        }
+
+
+        
     }
 
     // Clean up
@@ -128,26 +320,94 @@ TArray<FAStarNode*> ADungeonGenerator::FindPath(const FVector& StartPos, const F
         }
     }*/
 
+    UE_LOG(LogTemp, Warning, TEXT("Path Length %d"), Path.Num());
     return Path;
 }
 
 int32 ADungeonGenerator::GetCorridorType(const FVector& Direction)
 {
-    if (Direction.X > 0) return 5;  // East
-    if (Direction.X < 0) return 4;  // West
-    if (Direction.Y > 0) return 3;  // South
-    if (Direction.Y < 0) return 2;  // North
-    return 0;
+    return 2;
+   
+}
+FVector ADungeonGenerator::GetStaircaseDirectionFromIndex(const FVector& Location)
+{
+    // Example function to retrieve direction vector based on cell index, needs actual implementation based on data structure
+    for (const FStair& Stair : Stairs)  // Assuming AllStairs is TArray<FStair>
+    {
+        if (Stair.StairCells.Contains(Location))  // Convert index back to FVector or adjust logic based on actual usage
+        {
+            return Stair.Direction;  // Scale direction for visualization purposes
+        }
+    }
+    return FVector(0,0,0);  // Default to no direction if not found
+}
+
+int32 ADungeonGenerator::GetStairIndex(const FVector& Location)
+{
+    // Example function to retrieve direction vector based on cell index, needs actual implementation based on data structure
+    for(int i=0;i<Stairs.Num();i++)  
+    {
+        if (Stairs[i].StairCells.Contains(Location))  // Convert index back to FVector or adjust logic based on actual usage
+        {
+            return i;  // Scale direction for visualization purposes
+        }
+    }
+    return 0;  // Default to no direction if not found
+}
+
+void ADungeonGenerator::PlaceStaircase(const FVector& StartPosition, const FVector& Direction)
+{
+    TArray<FVector> StaircaseCells;
+   
+  
+
+    StaircaseCells.Add(StartPosition + FVector(Direction.X / 2, Direction.Y / 2, 0));
+     StaircaseCells.Add(StartPosition + FVector(Direction.X , Direction.Y , 0));
+    StaircaseCells.Add(StartPosition + FVector(Direction.X / 2, Direction.Y / 2, Direction.Z ));
+    StaircaseCells.Add(StartPosition + Direction);
+
+    FStair newstair;
+
+    newstair.Direction = Direction;
+    for (int i = 0; i < StaircaseCells.Num(); i++)
+    {
+        
+        
+        int32 X = StaircaseCells[i].X;
+        int32 Y = StaircaseCells[i].Y;
+        int32 Z = StaircaseCells[i].Z;
+        int32 Index = GetIndex(X, Y, Z);
+       
+        Grid[Index] = 6;  // 6, 7, 8, 9 represent parts of the staircase
+        
+        newstair.AddStairCell(X, Y, Z);
+
+        
+    }
+
+    Stairs.Add(newstair);
+    UE_LOG(LogTemp, Warning, TEXT("Placing Stairs at Index %d"), Stairs.Num());
+
+    for(int i=0;i<newstair.StairCells.Num();i++)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("Staircase Cell %s"), *newstair.StairCells[i].ToString());
+
+        
+    }
 }
 
 void ADungeonGenerator::PlaceCorridor(const FVector& Position, int32 Type)
 {
     int32 X = Position.X ;
     int32 Y = Position.Y ;
-    int32 Index = Y * Width + X;
-    if (Grid.IsValidIndex(Index)&&Grid[Index]!=1)
+    int32 Z = Position.Z ;
+    int32 Index = GetIndex(X, Y, Z);
+    if (Grid[Index] != 6&&Grid[Index]!=1)
         Grid[Index] = Type;
 }
+
+
+
 
 void ADungeonGenerator::ConnectRoomsUsingAStar(const TArray<FRoomConnection>& MST)
 {
@@ -156,11 +416,17 @@ void ADungeonGenerator::ConnectRoomsUsingAStar(const TArray<FRoomConnection>& MS
         const FRoom& RoomA = Rooms[Connection.RoomIndexA];
         const FRoom& RoomB = Rooms[Connection.RoomIndexB];
 
-        FVector StartPos = RoomA.EntryPoint;
-        FVector TargetPos = RoomB.ExitPoint;
 
+        
+          FVector StartPos = RoomCenter(RoomA);
+        FVector TargetPos = RoomCenter(RoomB);
+
+    UE_LOG(LogTemp, Warning, TEXT("RoomA Center %s"), *StartPos.ToString());
+    UE_LOG(LogTemp, Warning, TEXT("RoomB Center %s"), *TargetPos.ToString());
         TArray<FAStarNode*> Path = FindPath(StartPos, TargetPos);
          UE_LOG(LogTemp, Warning, TEXT("Path Generated between %d and %d"), Connection.RoomIndexA, Connection.RoomIndexB);
+         
+          
         FAStarNode* LastNode = nullptr;
         if (Path.Num() > 0)
         {
@@ -171,7 +437,18 @@ void ADungeonGenerator::ConnectRoomsUsingAStar(const TArray<FRoomConnection>& MS
                 {
                     FVector Direction = Node->Position - LastNode->Position;
                     int32 CorridorType = GetCorridorType(Direction);
-                    PlaceCorridor(LastNode->Position, CorridorType);
+
+                    UE_LOG(LogTemp, Warning, TEXT("path location %s"), *Node->Position.ToString());
+                    
+                    if(Node->Position.Z-LastNode->Position.Z>=1||Node->Position.Z-LastNode->Position.Z<=-1)
+                    {
+                       
+                       PlaceStaircase(LastNode->Position, Direction);
+                        PlaceCorridor(LastNode->Position, CorridorType);
+                    }
+                    else 
+                     PlaceCorridor(LastNode->Position, CorridorType);
+                    
                 }
                 LastNode = Node;
             }
@@ -180,6 +457,7 @@ void ADungeonGenerator::ConnectRoomsUsingAStar(const TArray<FRoomConnection>& MS
         {
             UE_LOG(LogTemp, Warning, TEXT("No path found between rooms %d and %d"), Connection.RoomIndexA, Connection.RoomIndexB);
         }
+        UE_LOG(LogTemp, Warning, TEXT("Done"));
     }
 }
 
@@ -300,8 +578,8 @@ void ADungeonGenerator::GenerateAllRoomConnections(TArray<FRoomConnection>& OutC
         {
             const FRoom& RoomA = Rooms[i];
             const FRoom& RoomB = Rooms[j];
-            FVector CenterA(RoomA.StartX + RoomA.Width / 2.0f, RoomA.StartY + RoomA.Height / 2.0f, 0);
-            FVector CenterB(RoomB.StartX + RoomB.Width / 2.0f, RoomB.StartY + RoomB.Height / 2.0f, 0);
+            FVector CenterA(RoomA.StartX + RoomA.Width / 2.0f, RoomA.StartY + RoomA.Height / 2.0f, RoomA.StartZ + RoomA.Length / 2.0f);
+            FVector CenterB(RoomB.StartX + RoomB.Width / 2.0f, RoomB.StartY + RoomB.Height / 2.0f, RoomA.StartZ + RoomA.Length / 2.0f);
             float Distance = FVector::Dist(CenterA, CenterB);
             OutConnections.Add(FRoomConnection(i, j, Distance));
         }
@@ -326,7 +604,7 @@ void ADungeonGenerator::Tick(float DeltaTime)
     FrameCounter++;
     if (FrameCounter >= 400)
     {
-        //DrawDebugGrid();
+        DrawDebugGrid();
 		
         FrameCounter = 0;  // reset counter after updating
     }
@@ -335,13 +613,15 @@ void ADungeonGenerator::Tick(float DeltaTime)
 
 void ADungeonGenerator::GenerateDungeon()
 {
+
+    UE_LOG(LogTemp, Warning, TEXT("Generating Dungeon..."));
   	 InitializeGrid();  // Set up the grid with default values
     PlaceMultipleRooms(NumofRoom);  // Place 10 rooms randomly
 
     TArray<FRoomConnection> MST = KruskalsMST();  // Generate the MST to find optimal room connections
     ConnectRoomsUsingAStar(MST);  // Connect rooms using corridors defined by A*
 
-    SpawnDungeonEnvironment();  // Spawn the physical dungeon based on the grid
+    //SpawnDungeonEnvironment();  // Spawn the physical dungeon based on the grid
 }
 
 void ADungeonGenerator::SpawnFloorTile(const FVector& Location)
@@ -470,7 +750,7 @@ void ADungeonGenerator::SpawnCorridorWalls(int x, int y, int32 CorridorType)
 
 void ADungeonGenerator::InitializeGrid()
 {
-    Grid.SetNum(Width * Height);
+    Grid.SetNum(Width * Height*Length);
     for (int32& Cell : Grid)
     {
         Cell = 0; // Initialize all grid cells to 0
@@ -513,135 +793,113 @@ void ADungeonGenerator::PlaceMeshes()
 
 void ADungeonGenerator::DrawDebugGrid()
 {
-    FVector BaseLocation = GetActorLocation(); // This is the base location of the dungeon generator actor in the world.
-     // Each cell is 100x100 units.
+    FVector BaseLocation = GetActorLocation(); // Base location of the dungeon generator actor // Size of each cell in units
+    float Elevation = 50.0f;  // Height of one floor above another
 
-    FVector NorthLabelLocation = BaseLocation + FVector(Width * CellSize / 2, -CellSize, 50.0f);
-    FVector SouthLabelLocation = BaseLocation + FVector(Width * CellSize / 2, Height * CellSize + CellSize, 50.0f);
-    FVector EastLabelLocation = BaseLocation + FVector(Width * CellSize + CellSize, Height * CellSize / 2, 50.0f);
-    FVector WestLabelLocation = BaseLocation + FVector(-CellSize, Height * CellSize / 2, 50.0f);
+    for (int32 z = 0; z < Length; z++)
+    {
+        for (int32 y = 0; y < Height; y++)
+        {
+            for (int32 x = 0; x < Width; x++)
+            {
+                int32 Index = GetIndex(x, y, z);
+                FVector CellLocation = BaseLocation + FVector(x * CellSize, y * CellSize, z * Elevation);
+                FString IndexString = FString::Printf(TEXT("%d"), Index);
+                FString In= FString::Printf(TEXT("%d"), GetStairIndex(FVector(x,y,z)));  
+
+                if (Grid[Index] == 1)  // Room
+                {
+                    DrawDebugBox(GetWorld(), CellLocation, FVector(CellSize/2, CellSize/2, Elevation/2), FColor::Turquoise, true, -1, 0, 5);
+                }
+                else if (Grid[Index] >= 2 && Grid[Index] <= 5)  // Corridor
+                {
+                    DrawDebugBox(GetWorld(), CellLocation, FVector(CellSize/2, CellSize/2, Elevation/2), FColor::Yellow, true, -1, 0, 5);
+                    DrawDebugString(GetWorld(), CellLocation + FVector(0, 0, Elevation/2 + 10), IndexString, nullptr, FColor::White, -1.0f, true);
+                }
+                else if (Grid[Index] == 6)  // Empty space
+                {
+                     FVector Direction = GetStaircaseDirectionFromIndex(FVector(x,y,z)); // Assume a helper function to get direction
+                        FVector ArrowHeadLocation = CellLocation + Direction*50.0f;  // Calculate where the arrow should point
+                          DrawDebugString(GetWorld(), CellLocation + FVector(0, 0, Elevation/2 + 10), In, nullptr, FColor::White, -1.0f, true);
+                        DrawDebugDirectionalArrow(GetWorld(), CellLocation + FVector(0, 0, Elevation/2), ArrowHeadLocation, -1.0f, FColor::Red, true, -1.0f, 0, 5);
+
+                     DrawDebugBox(GetWorld(), CellLocation, FVector(CellSize/2, CellSize/2, Elevation/2), FColor::Blue, true, -1, 0, 5);
+                       // Adjusted duration
+                }
+            }
+        }
+    }
+
+    // Optionally draw labels for direction indicators at grid edges
+    FVector NorthLabelLocation = BaseLocation + FVector(Width * CellSize / 2, -CellSize, Length * Elevation / 2);
+    FVector SouthLabelLocation = BaseLocation + FVector(Width * CellSize / 2, Height * CellSize + CellSize, Length * Elevation / 2);
+    FVector EastLabelLocation  = BaseLocation + FVector(Width * CellSize + CellSize, Height * CellSize / 2, Length * Elevation / 2);
+    FVector WestLabelLocation  = BaseLocation + FVector(-CellSize, Height * CellSize / 2, Length * Elevation / 2);
 
     DrawDebugString(GetWorld(), NorthLabelLocation, "N", nullptr, FColor::Red, -1.0f, true);
     DrawDebugString(GetWorld(), SouthLabelLocation, "S", nullptr, FColor::Red, -1.0f, true);
     DrawDebugString(GetWorld(), EastLabelLocation, "E", nullptr, FColor::Red, -1.0f, true);
     DrawDebugString(GetWorld(), WestLabelLocation, "W", nullptr, FColor::Red, -1.0f, true);
-    
-    for (int32 y = 0; y < Height; y++)
-    {
-        for (int32 x = 0; x < Width; x++)
-        {
-            int32 Index = y * Width + x;
-            FVector CellLocation = BaseLocation + FVector(x * CellSize, y * CellSize, 0);  // Location of the current cell.
-            FVector TextLocation = CellLocation + FVector(0, 0, 50);  // Slightly above the cell for visibility.
-
-             FVector ArrowOrigin = CellLocation + FVector(0, 0, 10.0f);
-            FVector ArrowDirection;
-            float ArrowLength = 40.0f;
-            FColor ArrowColor = FColor::Black;
-            float ArrowThickness = 3.0f;
-
-            if (Grid[Index] == 1)  // Room
-            {
-                DrawDebugBox(GetWorld(), CellLocation, FVector(CellSize/2, CellSize/2, 10.0f), FColor::Turquoise, true, -1, 0, 5);
-                // Find which room this cell belongs to
-                for (int32 i = 0; i < Rooms.Num(); i++)
-                {
-                    if (x >= Rooms[i].StartX && x < Rooms[i].StartX + Rooms[i].Width &&
-                        y >= Rooms[i].StartY && y < Rooms[i].StartY + Rooms[i].Height)
-                    {
-                        DrawDebugString(GetWorld(), TextLocation, FString::Printf(TEXT("%d"), i), nullptr, FColor::White, -1, true);
-                        break;
-                    }
-                }
-            }
-           else if (Grid[Index] == 2 || Grid[Index] == 3 || Grid[Index] == 4 || Grid[Index] == 5)  // Corridor with direction
-            {
-                DrawDebugBox(GetWorld(), CellLocation, FVector(CellSize/2, CellSize/2, 10.0f), FColor::Yellow, true, -1, 0, 5);
-                switch (Grid[Index])
-                {
-                    case 2: // North
-                        ArrowDirection = FVector(0, 1, 0);
-                        break;
-                    case 3: // South
-                        ArrowDirection = FVector(0, -1, 0);
-                        break;
-                    case 4: // East
-                        ArrowDirection = FVector(1, 0, 0);
-                        break;
-                    case 5: // West
-                        ArrowDirection = FVector(-1, 0, 0);
-                        break;
-                }
-                DrawDebugDirectionalArrow(GetWorld(), ArrowOrigin, ArrowOrigin + ArrowDirection * ArrowLength, ArrowLength, ArrowColor, true, -1, 0, ArrowThickness);
-            }
-            else if (Grid[Index] == 3)  // Door
-            {
-                DrawDebugBox(GetWorld(), CellLocation, FVector(CellSize/2, CellSize/2, 10.0f), FColor::Emerald, true, -1, 0, 5);
-            }
-            else  // Assume walls/empty space
-            {
-                DrawDebugBox(GetWorld(), CellLocation, FVector(CellSize/2, CellSize/2, 10.0f), FColor::Blue, true, -1, 0, 5);
-            }
-        }
-    }
-
-	// Highlight Entry and Exit Points
-   
 }
 
 void ADungeonGenerator::PlaceMultipleRooms(int32 NumberOfRooms)
 {
-    int32 MaxAttempts = 100;
-    for (int32 i = 0; i < NumberOfRooms; i++)
-    {
-        int32 Attempt = 0;
-        bool bPlaced = false;
-        while (!bPlaced && Attempt < MaxAttempts)
-        {
-            Attempt++;
-            int32 RoomWidth = FMath::RandRange(4, 5);  // Randomize room width between 4 and 5
-            int32 RoomHeight = FMath::RandRange(4, 5);  // Randomize room height between 4 and 5
-            int32 StartX = FMath::RandRange(0, Width - RoomWidth);
-            int32 StartY = FMath::RandRange(0, Height - RoomHeight);
+    int32 Attempts = 0;
+    int32 PlacedRooms = 0;
 
-            if (CanPlaceRoom(StartX, StartY, RoomWidth, RoomHeight))
-            {
-                PlaceRoom(StartX, StartY, RoomWidth, RoomHeight);
-                bPlaced = true;
-            }
+    while (PlacedRooms < NumberOfRooms && Attempts < NumberOfRooms * 10) {
+        FRoom NewRoom;
+        NewRoom.Width = FMath::RandRange(minRoomsize, maxRoomsize);
+        NewRoom.Height = FMath::RandRange(minRoomsize, minRoomsize);
+        NewRoom.Length = FMath::RandRange(1, 2);  // Rooms can span between 1 and 3 levels
+
+        NewRoom.StartX = FMath::RandRange(0, Width - NewRoom.Width);
+        NewRoom.StartY = FMath::RandRange(0, Height - NewRoom.Height);
+        NewRoom.StartZ = FMath::RandRange(0, Length - NewRoom.Length);
+
+        if (CanPlaceRoom(NewRoom)) {
+            PlaceRoom(NewRoom);
+            PlacedRooms++;
         }
+        Attempts++;
     }
 }
-
-bool ADungeonGenerator::CanPlaceRoom(int32 StartX, int32 StartY, int32 RoomWidth, int32 RoomHeight)
+int32 ADungeonGenerator::GetIndex(int32 x, int32 y, int32 z)
 {
-    for (int32 Y = StartY; Y < StartY + RoomHeight; Y++)
-    {
-        for (int32 X = StartX; X < StartX + RoomWidth; X++)
-        {
-            if (Grid[Y * Width + X] != 0)  // Check if the cell is already taken
-            {
-                return false;
+    return x + y * Width + z * Width * Height;
+}
+
+bool ADungeonGenerator::CanPlaceRoom(const FRoom& Room) 
+{
+    for (int z = Room.StartZ; z < Room.StartZ + Room.Length; ++z) {
+        for (int y = Room.StartY; y < Room.StartY + Room.Height; ++y) {
+            for (int x = Room.StartX; x < Room.StartX + Room.Width; ++x) {
+                if (x < 0 || x >= Width || y < 0 || y >= Height || z < 0 || z >= Length) {
+                    return false;  // Check if the room is out of the grid bounds
+                }
+                int32 Index = GetIndex(x, y, z);
+              
+                if (Grid[Index] != 0) {
+                    return false;  // Check if the cell is already occupied
+                }
             }
         }
     }
     return true;
 }
 
-void ADungeonGenerator::PlaceRoom(int32 StartX, int32 StartY, int32 RoomWidth, int32 RoomHeight)
+void ADungeonGenerator::PlaceRoom(const FRoom& Room)
 {
-    for (int32 Y = StartY; Y < StartY + RoomHeight; Y++)
-    {
-        for (int32 X = StartX; X < StartX + RoomWidth; X++)
-        {
-            Grid[Y * Width + X] = 1; // Set grid cells to 1 to indicate room presence
+    for (int z = Room.StartZ; z < Room.StartZ + Room.Length; ++z) {
+        for (int y = Room.StartY; y < Room.StartY + Room.Height; ++y) {
+            for (int x = Room.StartX; x < Room.StartX + Room.Width; ++x) {
+                int32 Index = GetIndex(x, y, z);
+                Grid[Index] = 1;  // Assume '1' marks cells occupied by rooms
+            }
         }
     }
-
-    // Add the room to the Rooms array
-    Rooms.Add(FRoom(StartX, StartY, RoomWidth, RoomHeight));
+    Rooms.Add(Room);
 }
-
 
 
 void ADungeonGenerator::FinalizeDungeon()

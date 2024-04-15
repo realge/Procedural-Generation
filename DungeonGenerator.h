@@ -15,6 +15,9 @@ struct FAStarNode
     float FCost() const { return GCost + HCost; }  // Total cost
     FAStarNode* CameFrom;  // Parent node in the path
 
+    bool Istair = false;
+    bool IsStaircorridor = false;//Corridor that is part of the a staircase
+    FVector StairDirection;
     // Constructors
     FAStarNode(FVector Pos = FVector::ZeroVector, float G = FLT_MAX, float H = FLT_MAX, FAStarNode* Parent = nullptr)
         : Position(Pos), GCost(G), HCost(H), CameFrom(Parent) {}
@@ -32,6 +35,8 @@ struct FRoomConnection
     GENERATED_BODY()
 
 public:
+
+
     UPROPERTY()
     int32 RoomIndexA;
 
@@ -49,6 +54,30 @@ public:
 };
 
 
+
+USTRUCT(BlueprintType)
+struct FStair
+{
+    GENERATED_BODY()
+
+public:
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Stair")
+    TArray<FVector> StairCells;  // Locations of the stair cells that make up the staircase
+      UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Stair")
+    FVector Direction;  // Direction of the staircase
+
+     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Stair")
+      TArray<FVector> EndPoints;  
+
+    FStair() {}
+
+    // Helper function to add cells to the staircase
+    void AddStairCell(int32 X, int32 Y, int32 Z)
+    {
+        StairCells.Add(FVector(X, Y, Z));
+    }
+};
+
 USTRUCT(BlueprintType)
 struct FRoom
 {
@@ -62,10 +91,17 @@ public:
     int32 StartY;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    int32 StartZ; 
+
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
     int32 Width;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
     int32 Height;
+
+     UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    int32 Length;
 
  UPROPERTY(EditAnywhere, BlueprintReadWrite)
      FVector EntryPoint;  // Entry point for pathfinding, typically at a room edge facing a corridor
@@ -114,6 +150,11 @@ public:
      UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Dungeon")
     int32 Length = 30;
 
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Dungeon")
+    int32 minRoomsize = 4;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Dungeon")
+    int32 maxRoomsize = 6;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Dungeon")
     int32 NumofRoom = 10;
@@ -124,6 +165,9 @@ public:
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Dungeon")
 	TArray<FRoom> Rooms;
+
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Dungeon")
+    TArray<FStair> Stairs;
 	
 
 	UPROPERTY(EditAnywhere, Category="Dungeon|Meshes")
@@ -145,13 +189,15 @@ public:
 
 	void PlaceMultipleRooms(int32 NumberOfRooms);
 
-	bool CanPlaceRoom(int32 X, int32 Y, int32 RoomWidth, int32 RoomHeight);
+	bool CanPlaceRoom(const FRoom& Room);
 
-	void PlaceRoom(int32 X, int32 Y, int32 RoomWidth, int32 RoomHeight);
+    int32 GetIndex(int32 X, int32 Y,int32 z);
+
+	void PlaceRoom(const FRoom& Room);
 
 	int32 GetRoomIndex(int32 X, int32 Y);
 
-	
+    FVector GetStaircaseDirectionFromIndex(const FVector& Location);
 
 	void FinalizeDungeon();
 
@@ -177,11 +223,17 @@ public:
 
 	bool IsWalkable(const FVector& Position, const FVector& StartPos, const FVector& TargetPos);
 
-	TArray<FVector> GetNeighbors(const FVector& NodePosition, const FVector& StartPos, const FVector& TargetPos);
+    FRoom GetRoomFromPosition(const FVector& Position);
+
+    FVector RoomCenter(const FRoom& Room);
+
+	TArray<FVector> GetNeighbors(const FVector& NodePosition, const FVector& StartPos, const FVector& TargetPos, bool IsStairCase,FVector StairDirection);
 
 	void DrawDebugRoomPoints();
+    
+    bool IsStaircaseWalkable(const FVector& StartPos, const FVector& EndPos);
 
-    bool IsInRoom(const FVector& Position, const FVector& RoomPosition);
+    bool IsInRoom(const FVector& Position, const FRoom& Room);
 
     int32 GetCorridorType(const FVector& Direction);
 
@@ -194,4 +246,12 @@ public:
     void SpawnWallTile(const FVector& Location, const FRotator& Rotation);
 
     void SpawnFloorTile(const FVector& Location);
+
+    void PlaceStaircase(const FVector& StartPosition, const FVector& Direction);
+    
+    int32 GetStairIndex(const FVector& Position);
+
+    TArray<FVector> GetStairNeighbors (const FVector& NodePosition, const FVector& StartPos, const FVector& TargetPos, bool IsStairCase,FVector Direction,bool IsStairCorridor);
+
+    
 };
