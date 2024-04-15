@@ -227,7 +227,7 @@ public:
 
     FVector RoomCenter(const FRoom& Room);
 
-	TArray<FVector> GetNeighbors(const FVector& NodePosition, const FVector& StartPos, const FVector& TargetPos, bool IsStairCase,FVector StairDirection);
+	TArray<FVector> GetNeighbors(const FVector& NodePosition, const FVector& StartPos, const FVector& TargetPos, bool IsStairCase, FVector StairDirection);
 
 	void DrawDebugRoomPoints();
     
@@ -251,7 +251,7 @@ public:
     
     int32 GetStairIndex(const FVector& Position);
 
-    TArray<FVector> GetStairNeighbors (const FVector& NodePosition, const FVector& StartPos, const FVector& TargetPos, bool IsStairCase,FVector Direction,bool IsStairCorridor);
+    TArray<FVector> GetStairNeighbors (const FVector& NodePosition, const FVector& StartPos, const FVector& TargetPos, bool IsStairCase,FVector Direction,bool IsStairCorridor,FAStarNode* node);
 
-    
+    bool checkpath(TArray<FAStarNode*> Path);
 };

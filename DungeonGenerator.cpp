@@ -19,10 +19,7 @@ TArray<FVector> ADungeonGenerator::GetNeighbors(const FVector& NodePosition, con
         FVector(0, 1, 0), FVector(0, -1, 0), // North, South
         // Up, Down
     };
-        if(StairDirection.IsZero())
-        {
-
-        }
+        
     
 
     for (const FVector& Dir : Directions)
@@ -37,9 +34,13 @@ TArray<FVector> ADungeonGenerator::GetNeighbors(const FVector& NodePosition, con
                 {
                 
                 }
+                
+
                 else
                 continue;
             }
+
+           
 
             if (IsWalkable(NewPos,StartPos,TargetPos))
             {
@@ -53,9 +54,13 @@ TArray<FVector> ADungeonGenerator::GetNeighbors(const FVector& NodePosition, con
     return Neighbors;
 }
 
+bool ADungeonGenerator::checkpath(TArray<FAStarNode*> path)
+{
 
+    return false;
+}
 
-TArray<FVector> ADungeonGenerator::GetStairNeighbors(const FVector& NodePosition, const FVector& StartPos, const FVector& TargetPos, bool IsStairCase,FVector Direction,bool IsStairCorridor)
+TArray<FVector> ADungeonGenerator::GetStairNeighbors(const FVector& NodePosition, const FVector& StartPos, const FVector& TargetPos, bool IsStairCase,FVector Direction,bool IsStairCorridor,FAStarNode* node )
 {
     
 
@@ -89,6 +94,20 @@ TArray<FVector> ADungeonGenerator::GetStairNeighbors(const FVector& NodePosition
            continue;
            
         }
+
+        
+            FVector nodeDirection=node->CameFrom->Position;
+           
+            FVector result= nodeDirection+FVector(Dir.X/2,Dir.Y/2,Dir.Z);
+
+            FVector check= node->Position+Dir;
+          
+            if(result.Equals(check, 1e-4f))
+            {
+               
+                continue;
+            }
+
 
         if(Direction+Dir==FVector(0,0,-2))
         {
@@ -206,8 +225,17 @@ bool ADungeonGenerator::IsInRoom(const FVector& Position, const FRoom& Room)
            Z == Room.StartZ;
 }
 
-bool checkpath( FAStarNode* path)
+bool checkpath( TArray<FAStarNode*> Path)
 {
+    TArray<FVector> staircasecells;
+    for(FAStarNode* node:Path)
+    {
+        if(node->Istair)
+        {
+            FVector Direction= node->StairDirection;
+            staircasecells.Add(node->Position);
+        }
+    }
     return false;
 }
 
@@ -239,13 +267,12 @@ TArray<FAStarNode*> ADungeonGenerator::FindPath(const FVector& StartPos, const F
         if (CurrentNode->Position.Equals(TargetPos, 0.0f)&&CurrentNode->Istair==false)  // Check proximity within a small threshold
         {
 
-            UE_LOG(LogTemp, Warning, TEXT("Target Found at %s"), *CurrentNode->Position.ToString());
-             UE_LOG(LogTemp, Warning, TEXT("Target Found at %s"), TargetPos) ;
+        
             while (CurrentNode != nullptr)
             {
                 
                 Path.Add(CurrentNode);
-			
+                
                 CurrentNode = CurrentNode->CameFrom;
             }
             Algo::Reverse(Path);
@@ -254,7 +281,7 @@ TArray<FAStarNode*> ADungeonGenerator::FindPath(const FVector& StartPos, const F
 
         TArray<FVector> Neighbors = GetNeighbors(CurrentNode->Position,StartPos, TargetPos,CurrentNode->Istair,CurrentNode->StairDirection);
 
-        TArray<FVector> StairNeighbors= GetStairNeighbors(CurrentNode->Position,StartPos, TargetPos,CurrentNode->Istair,CurrentNode->StairDirection,CurrentNode->IsStaircorridor);
+        TArray<FVector> StairNeighbors= GetStairNeighbors(CurrentNode->Position,StartPos, TargetPos,CurrentNode->Istair,CurrentNode->StairDirection,CurrentNode->IsStaircorridor,CurrentNode);
 
         for (const FVector& Neighbor : Neighbors)
         {
@@ -386,14 +413,9 @@ void ADungeonGenerator::PlaceStaircase(const FVector& StartPosition, const FVect
     }
 
     Stairs.Add(newstair);
-    UE_LOG(LogTemp, Warning, TEXT("Placing Stairs at Index %d"), Stairs.Num());
+  
 
-    for(int i=0;i<newstair.StairCells.Num();i++)
-    {
-        UE_LOG(LogTemp, Warning, TEXT("Staircase Cell %s"), *newstair.StairCells[i].ToString());
-
-        
-    }
+    
 }
 
 void ADungeonGenerator::PlaceCorridor(const FVector& Position, int32 Type)
@@ -421,8 +443,7 @@ void ADungeonGenerator::ConnectRoomsUsingAStar(const TArray<FRoomConnection>& MS
           FVector StartPos = RoomCenter(RoomA);
         FVector TargetPos = RoomCenter(RoomB);
 
-    UE_LOG(LogTemp, Warning, TEXT("RoomA Center %s"), *StartPos.ToString());
-    UE_LOG(LogTemp, Warning, TEXT("RoomB Center %s"), *TargetPos.ToString());
+   
         TArray<FAStarNode*> Path = FindPath(StartPos, TargetPos);
          UE_LOG(LogTemp, Warning, TEXT("Path Generated between %d and %d"), Connection.RoomIndexA, Connection.RoomIndexB);
          
