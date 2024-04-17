@@ -12,4 +12,6 @@ ARealoneGameMode::ARealoneGameMode()
 	{
 		DefaultPawnClass = PlayerPawnBPClass.Class;
 	}
+
+	
 }

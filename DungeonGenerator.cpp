@@ -5,8 +5,8 @@
 #include "DrawDebugHelpers.h"
 #include "Engine/StaticMeshActor.h"
 #include "Containers/Queue.h"
-
-
+#include "GameFramework/PlayerStart.h"
+#include "Kismet/GameplayStatics.h"
 
 TArray<FVector> ADungeonGenerator::GetNeighbors(const FVector& NodePosition, const FVector& StartPos, const FVector& TargetPos, bool IsStairCase, FVector StairDirection)
 {
@@ -625,11 +625,41 @@ void ADungeonGenerator::Tick(float DeltaTime)
     FrameCounter++;
     if (FrameCounter >= 400)
     {
-        DrawDebugGrid();
+        //DrawDebugGrid();
 		
         FrameCounter = 0;  // reset counter after updating
     }
 	
+}
+
+void ADungeonGenerator::PlacePlayerStart()
+{
+    if (Rooms.Num() > 0)  // Check if there are any rooms defined
+    {
+        FRoom& FirstRoom = Rooms[0];  // Reference to the first room
+        FVector RoomCenter = FirstRoom.GetCenter();  // Get the center point of the first room
+        FVector WorldCenter = GetWorldLocation(RoomCenter);  // Convert grid coordinates to world coordinates
+
+        // Assuming PlayerStart is an AActor class that you can place in the world
+        APlayerStart* PlayerStartActor = GetWorld()->SpawnActor<APlayerStart>(APlayerStart::StaticClass(), WorldCenter, FRotator(0.f, 0.f, 0.f));
+       APlayerController* PC = UGameplayStatics::GetPlayerController(this, 0);
+       
+        if (!PlayerStartActor)
+        {
+            UE_LOG(LogTemp, Warning, TEXT("Failed to place PlayerStart at Room 0 center"));
+        }
+        
+         if (PC)
+            {
+                PC->GetPawn()->SetActorLocation(WorldCenter);
+            }
+    }
+}
+
+FVector ADungeonGenerator::GetWorldLocation(const FVector& GridLocation)
+{
+    // Assuming each grid cell is 100 units wide
+    return GetActorLocation() + GridLocation * CellSize;
 }
 
 void ADungeonGenerator::GenerateDungeon()
@@ -642,7 +672,10 @@ void ADungeonGenerator::GenerateDungeon()
     TArray<FRoomConnection> MST = KruskalsMST();  // Generate the MST to find optimal room connections
     ConnectRoomsUsingAStar(MST);  // Connect rooms using corridors defined by A*
 
-    //SpawnDungeonEnvironment();  // Spawn the physical dungeon based on the grid
+    SpawnDungeonEnvironment();  // Spawn the physical dungeon based on the grid
+    //SpawnRoomWalls();
+    DrawDebugGrid();
+    PlacePlayerStart();
 }
 
 void ADungeonGenerator::SpawnFloorTile(const FVector& Location)
@@ -650,7 +683,7 @@ void ADungeonGenerator::SpawnFloorTile(const FVector& Location)
     FActorSpawnParameters SpawnParams;
     SpawnParams.Owner = this;
     SpawnParams.Instigator = GetInstigator();
-    FVector AdjustedLocation = Location - FVector(CellSize/2, CellSize/2, -CellSize/2);
+    FVector AdjustedLocation = Location - FVector(CellSize/2, CellSize/2, CellSize/2);
     AActor* FloorActor = GetWorld()->SpawnActor<AActor>(FloorTileClass, AdjustedLocation, FRotator::ZeroRotator, SpawnParams);
     if (!FloorActor)
     {
@@ -660,29 +693,38 @@ void ADungeonGenerator::SpawnFloorTile(const FVector& Location)
 
 void ADungeonGenerator::SpawnDungeonEnvironment()
 {
+
+    float Elevation = 100.0f;
+    for (int32 z = 0; z < Length; z++)
     for (int32 y = 0; y < Height; y++)
     {
         for (int32 x = 0; x < Width; x++)
         {
-            int32 Index = y * Width + x;
-            FVector CellLocation = GetActorLocation() + FVector(x * CellSize, y * CellSize, 0);
             
-            if (Grid[Index] == 1)  // Room
-            {
-                SpawnFloorTile(CellLocation);
-            }
-            else if (Grid[Index] >= 2 && Grid[Index] <= 5)  // Corridors
-            {
-                //SpawnCorridorTile(CellLocation, Grid[Index]);
-                SpawnCorridorWalls(x, y, Grid[Index]);
-            }
-            else  // Walls/empty space
-            {
-                //SpawnWallTile(CellLocation);
-            }
+               int32 Index = GetIndex(x, y, z);
+                FVector CellLocation = GetActorLocation() + FVector(x * CellSize, y * CellSize, z * CellSize);
+                
+                if (Grid[Index] == 1)  // Room
+                {
+                    SpawnFloorTile(CellLocation);
+                }
+                else if (Grid[Index] == 2)  // Corridors
+                {
+                    //SpawnCorridorTile(CellLocation, Grid[Index]);
+                    SpawnCorridorWalls(x, y, z, Grid[Index]);
+                }
+                else  // Walls/empty space
+                {
+                    //SpawnWallTile(CellLocation);
+            
+                 }
         }
     }
+
+    SpawnStairs();
 }
+
+
 
 void ADungeonGenerator::SpawnWallTile(const FVector& Location, const FRotator& Rotation)
 {
@@ -698,7 +740,7 @@ void ADungeonGenerator::SpawnWallTile(const FVector& Location, const FRotator& R
     SpawnParams.Instigator = GetInstigator();
 
     // Adjust Location to be centered based on your grid cell size; assume CellSize is height of the wall
-    FVector AdjustedLocation = Location + FVector(CellSize/2, CellSize/2, CellSize/2);
+    FVector AdjustedLocation = Location + FVector(CellSize/2, CellSize/2, -CellSize/2);
 
     // Spawn the wall
     AActor* WallActor = GetWorld()->SpawnActor<AActor>(WallClass, AdjustedLocation, Rotation, SpawnParams);
@@ -709,10 +751,70 @@ void ADungeonGenerator::SpawnWallTile(const FVector& Location, const FRotator& R
 }
 
 
-void ADungeonGenerator::SpawnCorridorWalls(int x, int y, int32 CorridorType)
+void ADungeonGenerator::SpawnStairs()
+{
+
+    FVector BaseLocation = GetActorLocation();
+    for(const FStair& Stair:Stairs)
+    {
+        
+            // Assume the first cell is the base of the staircase
+            UE_LOG(LogTemp, Warning, TEXT("Staircase at Location: %s"), *Stair.StairCells[0].ToString());
+            FVector CellLocation = BaseLocation + FVector(Stair.StairCells[0].X * CellSize, Stair.StairCells[0].Y * CellSize, Stair.StairCells[0].Z*CellSize);
+              FVector Direction = Stair.Direction;
+
+            
+            
+            if(Direction.Z==1)
+            {
+                   //Normalize direction to ignore the Z component for the rotator
+                int temp=Direction.Z;
+                Direction.Z = 0;
+                Direction.Normalize();
+
+                FRotator Rotation = FRotationMatrix::MakeFromX(Direction).Rotator();
+
+                CellLocation = CellLocation - FVector(Direction.X*CellSize/2, Direction.Y*CellSize/2,temp*CellSize/2 );  // Adjust the location to the top of the staircase
+                // Spawn the staircase blueprint at the base location with the calculated rotation
+
+                AActor* SpawnedStair = GetWorld()->SpawnActor<AActor>(StairBlueprint, CellLocation, Rotation);
+
+                if (!SpawnedStair)
+                {
+                    UE_LOG(LogTemp, Warning, TEXT("Failed to spawn staircase at Location: %s"), *BaseLocation.ToString());
+                }
+            }
+            else
+            {
+                //Normalize direction to ignore the Z component for the rotator
+                int temp=Direction.Z;
+                Direction.Z = 0;
+                Direction.Normalize();
+
+                FRotator Rotation = FRotationMatrix::MakeFromX(Direction).Rotator();
+
+                CellLocation = CellLocation + FVector(Direction.X*CellSize, Direction.Y*CellSize,temp*CellSize );  // Adjust the location to the top of the staircase
+                // Spawn the staircase blueprint at the base location with the calculated rotation
+                 CellLocation = CellLocation + FVector(Direction.X*CellSize/2, Direction.Y*CellSize/2,temp*CellSize/2 ); 
+                AActor* SpawnedStair = GetWorld()->SpawnActor<AActor>(StairBlueprint2, CellLocation, Rotation);
+
+                if (!SpawnedStair)
+                {
+                    UE_LOG(LogTemp, Warning, TEXT("Failed to spawn staircase at Location: %s"), *BaseLocation.ToString());
+                }
+            }
+
+           
+            
+          
+        
+    }
+}
+
+void ADungeonGenerator::SpawnCorridorWalls(int x, int y, int z, int32 CorridorType)
 {
     FVector BaseLocation = GetActorLocation();
-    FVector CellLocation = BaseLocation + FVector(x * CellSize, y * CellSize, 0);
+    FVector CellLocation = BaseLocation + FVector(x * CellSize, y * CellSize, z*CellSize);
     bool shouldSpawnEastWall = true, shouldSpawnWestWall = true, shouldSpawnNorthWall = true, shouldSpawnSouthWall = true;
 
 
@@ -721,25 +823,33 @@ void ADungeonGenerator::SpawnCorridorWalls(int x, int y, int32 CorridorType)
      FRotator r3(0.0f, -180.0f, 0.0f);  
      FRotator r4(0.0f, -90.0f, 0.0f);  
     // Check the grid boundaries and neighboring cells
+     TArray<FVector> Directions = {
+        FVector(1, 0, 0), FVector(-1, 0, 0),   // East, West
+        FVector(0, 1, 0), FVector(0, -1, 0),  // North, South
+    };
+
+
+
+
     if (x > 0) // Check West
     {
-        int32 WestIndex = y * Width + (x - 1);
+        int32 WestIndex = GetIndex(x - 1, y, z);
         shouldSpawnWestWall = (Grid[WestIndex] == 0 ); // Empty or door
     }
     if (x < Width - 1) // Check East
     {
-        int32 EastIndex = y * Width + (x + 1);
+        int32 EastIndex = GetIndex(x + 1, y, z);
        
         shouldSpawnEastWall = (Grid[EastIndex] == 0 ); // Empty or door
     }
     if (y > 0) // Check North
     {
-        int32 NorthIndex = (y - 1) * Width + x;
+        int32 NorthIndex = GetIndex(x, y - 1, z);
         shouldSpawnNorthWall = (Grid[NorthIndex] == 0 ); // Empty or door
     }
     if (y < Height - 1) // Check South
     {
-        int32 SouthIndex = (y + 1) * Width + x;
+        int32 SouthIndex = GetIndex(x, y + 1, z);
         shouldSpawnSouthWall = (Grid[SouthIndex] == 0 ); // Empty or door
     }
 
@@ -812,10 +922,61 @@ void ADungeonGenerator::PlaceMeshes()
     }
 }
 
+void ADungeonGenerator::SpawnRoomWalls()
+{
+    for (const FRoom& Room : Rooms)
+    {
+        // Calculate bounds for easier looping
+        int32 MinX = Room.StartX;
+        int32 MaxX = Room.StartX + Room.Width;
+        int32 MinY = Room.StartY;
+        int32 MaxY = Room.StartY + Room.Height;
+        int32 MinZ = Room.StartZ;
+        int32 MaxZ = Room.StartZ + Room.Length;
+
+        // Loop through the perimeter of the room
+        for (int32 z = MinZ; z < MaxZ; z++)
+        {
+            for (int32 y = MinY; y <= MaxY; y++)
+            {
+                for (int32 x = MinX; x <= MaxX; x++)
+                {
+                    if (x == MinX || x == MaxX || y == MinY || y == MaxY)
+                    {
+                        FVector WallLocation(x, y, z);
+                        SpawnWallAt(WallLocation, true);  
+                        // Don't spawn floor/ceiling walls unless it's the first/last layer
+
+                        UE_LOG(LogTemp, Warning, TEXT("Wall at Location: %s"), *WallLocation.ToString());
+                    }
+                }
+            }
+        }
+    }
+}
+
+void ADungeonGenerator::SpawnWallAt(const FVector& Location, bool bSpawnVerticalWalls)
+{
+    if (bSpawnVerticalWalls)
+    {
+        // Check if there's no room cell at this location (empty or corridor)
+        int32 Index = GetIndex(Location.X, Location.Y, Location.Z);
+        
+            FVector WorldLocation = GetWorldLocation(Location);
+            // Assuming WallBlueprint is a UProperty that points to the wall's blueprint class
+            AActor* WallActor = GetWorld()->SpawnActor<AActor>(WallClass, WorldLocation, FRotator(0.f));
+            if (!WallActor)
+            {
+                UE_LOG(LogTemp, Warning, TEXT("Failed to spawn wall at: %s"), *WorldLocation.ToString());
+            }
+        
+    }
+}
+
 void ADungeonGenerator::DrawDebugGrid()
 {
     FVector BaseLocation = GetActorLocation(); // Base location of the dungeon generator actor // Size of each cell in units
-    float Elevation = 50.0f;  // Height of one floor above another
+    float Elevation = 400.0f;  // Height of one floor above another
 
     for (int32 z = 0; z < Length; z++)
     {
@@ -830,19 +991,19 @@ void ADungeonGenerator::DrawDebugGrid()
 
                 if (Grid[Index] == 1)  // Room
                 {
-                    DrawDebugBox(GetWorld(), CellLocation, FVector(CellSize/2, CellSize/2, Elevation/2), FColor::Turquoise, true, -1, 0, 5);
+                    DrawDebugBox(GetWorld(), CellLocation, FVector(CellSize/2, CellSize/2, Elevation/2), FColor::Turquoise, true, -1.0f, 0, 5);
                 }
                 else if (Grid[Index] >= 2 && Grid[Index] <= 5)  // Corridor
                 {
-                    DrawDebugBox(GetWorld(), CellLocation, FVector(CellSize/2, CellSize/2, Elevation/2), FColor::Yellow, true, -1, 0, 5);
+                    DrawDebugBox(GetWorld(), CellLocation, FVector(CellSize/2, CellSize/2, Elevation/2), FColor::Yellow, true, -1.0f, 0, 5);
                     DrawDebugString(GetWorld(), CellLocation + FVector(0, 0, Elevation/2 + 10), IndexString, nullptr, FColor::White, -1.0f, true);
                 }
-                else if (Grid[Index] == 6)  // Empty space
+                else if (Grid[Index] == 6)  // stairs
                 {
                      FVector Direction = GetStaircaseDirectionFromIndex(FVector(x,y,z)); // Assume a helper function to get direction
                         FVector ArrowHeadLocation = CellLocation + Direction*50.0f;  // Calculate where the arrow should point
                           DrawDebugString(GetWorld(), CellLocation + FVector(0, 0, Elevation/2 + 10), In, nullptr, FColor::White, -1.0f, true);
-                        DrawDebugDirectionalArrow(GetWorld(), CellLocation + FVector(0, 0, Elevation/2), ArrowHeadLocation, -1.0f, FColor::Red, true, -1.0f, 0, 5);
+                        DrawDebugDirectionalArrow(GetWorld(), CellLocation + FVector(0, 0, Elevation), ArrowHeadLocation, -1.0f, FColor::Red, true, -1.0f, 0, 5);
 
                      DrawDebugBox(GetWorld(), CellLocation, FVector(CellSize/2, CellSize/2, Elevation/2), FColor::Blue, true, -1, 0, 5);
                        // Adjusted duration
@@ -872,7 +1033,7 @@ void ADungeonGenerator::PlaceMultipleRooms(int32 NumberOfRooms)
         FRoom NewRoom;
         NewRoom.Width = FMath::RandRange(minRoomsize, maxRoomsize);
         NewRoom.Height = FMath::RandRange(minRoomsize, minRoomsize);
-        NewRoom.Length = FMath::RandRange(1, 2);  // Rooms can span between 1 and 3 levels
+        NewRoom.Length = FMath::RandRange(1, 1);  // Rooms can span between 1 and 3 levels
 
         NewRoom.StartX = FMath::RandRange(0, Width - NewRoom.Width);
         NewRoom.StartY = FMath::RandRange(0, Height - NewRoom.Height);

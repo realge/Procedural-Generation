@@ -50,7 +50,10 @@ public:
 
     bool operator<(const FRoomConnection& Other) const {
         return Distance < Other.Distance;
+        
     }
+
+      
 };
 
 
@@ -109,10 +112,17 @@ public:
 	 UPROPERTY(EditAnywhere, BlueprintReadWrite)
     FVector ExitPoint;   // Exit point for pathfinding, opposite or different from the entry point
 
+    FVector GetCenter() const
+    {
+        return FVector(StartX + Width / 2.0f, StartY + Height / 2.0f, StartZ + Length / 2.0f);
+    }
+
     FRoom(int32 x = 0, int32 y = 0, int32 w = 1, int32 h = 1) 
         : StartX(x), StartY(y), Width(w), Height(h), 
           EntryPoint(FVector((x + (w - 1)/2), (y + (h-1)/2), 0)),  // Midpoint of the left wall
           ExitPoint(FVector((x + (w - 1)/2), (y + (h-1)/2), 0)) {}  // Midpoint of the right wall
+
+          
 };
 
 UCLASS()
@@ -137,6 +147,12 @@ public:
 
     UPROPERTY(EditAnywhere, Category = "Config")
     TSubclassOf<AActor> FloorTileClass;
+
+    UPROPERTY(EditAnywhere, Category = "Config")
+    TSubclassOf<AActor> StairBlueprint;
+
+    UPROPERTY(EditAnywhere, Category = "Config")
+    TSubclassOf<AActor> StairBlueprint2;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Dungeon")
     float CellSize = 100.0f;
@@ -241,7 +257,7 @@ public:
 
     void SpawnDungeonEnvironment();
 
-    void SpawnCorridorWalls(int x, int y, int32 CorridorType);
+    void SpawnCorridorWalls(int x, int y, int z, int32 CorridorType);
 
     void SpawnWallTile(const FVector& Location, const FRotator& Rotation);
 
@@ -254,4 +270,14 @@ public:
     TArray<FVector> GetStairNeighbors (const FVector& NodePosition, const FVector& StartPos, const FVector& TargetPos, bool IsStairCase,FVector Direction,bool IsStairCorridor,FAStarNode* node);
 
     bool checkpath(TArray<FAStarNode*> Path);
+
+    void SpawnStairs();
+
+    void PlacePlayerStart();
+
+    FVector GetWorldLocation(const FVector& GridLocation);
+
+    void SpawnRoomWalls();
+
+    void SpawnWallAt(const FVector& Location, bool bSpawnVerticalWalls);
 };
